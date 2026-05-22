@@ -1,0 +1,7 @@
+{
+  "name": "BanaNyang-ANTI",
+  "description": "Based on the NanoBanana AI model, generate three-view character sheets and freely edit costume designs.",
+  "requestFramePermissions": [
+    "clipboard-read"
+  ]
+}

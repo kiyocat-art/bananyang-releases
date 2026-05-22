@@ -1,0 +1,65 @@
+name: Release macOS Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      severity:
+        description: 'Update severity'
+        required: true
+        default: 'optional'
+        type: choice
+        options: [optional, recommended, critical]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-mac:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env.production
+        env:
+          ENV_PRODUCTION: ${{ secrets.ENV_PRODUCTION }}
+        run: echo "$ENV_PRODUCTION" > .env.production
+
+      - name: Build macOS (universal, unsigned)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist:mac:prod
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bananyang-mac-${{ github.run_id }}
+          path: |
+            release/mac/*.dmg
+            release/mac/*.zip
+            release/mac/*.blockmap
+            release/mac/latest-mac.yml
+          retention-days: 14
+
+      - name: Upload to Firebase Storage (tag push only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          FIREBASE_ADMIN_PRIVATE_KEY: ${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
+          FIREBASE_ADMIN_CLIENT_EMAIL: ${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
+          FIREBASE_ADMIN_PROJECT_ID: ${{ secrets.FIREBASE_ADMIN_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          SEVERITY=${{ github.event.inputs.severity || 'optional' }}
+          node scripts/release-firebase.mjs --version=$VERSION --severity=$SEVERITY

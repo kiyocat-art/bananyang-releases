@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installer Assets</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #333;
+            display: flex;
+            gap: 20px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .asset-container {
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Replicating .glass-grid-background from app */
+        .grid-bg {
+            background-color: #050505;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: center center;
+        }
+
+        /* Sidebar: 164x314 (NSIS standard) */
+        #sidebar {
+            width: 164px;
+            height: 314px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        #sidebar img {
+            width: 100px;
+            height: 100px;
+            opacity: 0.95;
+            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+        }
+
+        #sidebar .app-name {
+            margin-top: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        /* Header: 150x57 (NSIS standard) */
+        #header {
+            width: 150px;
+            height: 57px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            box-sizing: border-box;
+        }
+
+        #header img {
+            width: 32px;
+            height: 32px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <div id="sidebar" class="asset-container grid-bg">
+        <img src="../assets/icon.png" alt="Logo">
+        <span class="app-name">BanaNyang</span>
+    </div>
+
+    <!-- Header -->
+    <div id="header" class="asset-container grid-bg">
+        <img src="../assets/icon.png" alt="Logo">
+    </div>
+</body>
+
+</html>

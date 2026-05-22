@@ -1,0 +1,39 @@
+import React from 'react';
+import { Tooltip } from '../../../../../components/Tooltip';
+import { ScissorsIcon, UploadIcon, LightIcon } from '../../../../../components/icons';
+import { Language, t } from '../../../../../localization';
+
+type EditTool = 'crop' | 'object' | 'relight' | 'inpaint';
+
+interface EditorSidebarProps {
+    activeTool: EditTool;
+    setActiveTool: (tool: EditTool) => void;
+    t: (key: string, lang: string) => string;
+    language: Language;
+}
+
+export const EditorSidebar: React.FC<EditorSidebarProps> = ({ activeTool, setActiveTool, t, language }) => {
+    return (
+        <div className="flex border-b border-white/10">
+            <Tooltip tip={t('editModal.title', language)} position="top" className="flex-1">
+                <button onClick={() => setActiveTool('crop')} className={`w-full py-3 flex items-center justify-center transition-colors relative ${activeTool === 'crop' ? 'text-key bg-key/[0.07]' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'}`}>
+                    <ScissorsIcon className="w-5 h-5" />
+                    {activeTool === 'crop' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-key shadow-[0_0_8px_var(--key-glow)]" />}
+                </button>
+            </Tooltip>
+            <Tooltip tip={t('aiEdit.insertObject', language)} position="top" className="flex-1">
+                <button onClick={() => setActiveTool('object')} className={`w-full py-3 flex items-center justify-center transition-colors relative ${activeTool === 'object' ? 'text-key bg-key/[0.07]' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'}`}>
+                    <UploadIcon className="w-5 h-5" />
+                    {activeTool === 'object' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-key shadow-[0_0_8px_var(--key-glow)]" />}
+                </button>
+            </Tooltip>
+
+            <Tooltip tip={t('editModal.relight', language)} position="top" className="flex-1">
+                <button onClick={() => setActiveTool('relight')} className={`w-full py-3 flex items-center justify-center transition-colors relative ${activeTool === 'relight' ? 'text-key bg-key/[0.07]' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'}`}>
+                    <LightIcon className="w-5 h-5" />
+                    {activeTool === 'relight' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-key shadow-[0_0_8px_var(--key-glow)]" />}
+                </button>
+            </Tooltip>
+        </div>
+    );
+};

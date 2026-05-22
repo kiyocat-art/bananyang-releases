@@ -1,0 +1,38 @@
+name: Release Windows Build
+
+# v*.*.* 형태의 태그가 push될 때 자동 실행
+# 예: git tag v1.0.1 && git push origin v1.0.1
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # GitHub Secrets에 저장된 환경변수로 .env.production 파일 생성
+      - name: Create .env.production
+        shell: bash
+        env:
+          ENV_PRODUCTION: ${{ secrets.ENV_PRODUCTION }}
+        run: echo "$ENV_PRODUCTION" > .env.production
+
+      # electron-builder가 GH_TOKEN으로 bananyang-releases에 자동 업로드
+      - name: Build & Publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: npm run dist:win:prod

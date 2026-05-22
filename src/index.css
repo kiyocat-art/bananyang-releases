@@ -1,0 +1,914 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Key Color — 앱 전체 active/selected/highlight 단일 제어점 ──
+ * 키 컬러를 바꾸려면 아래 세 변수만 수정하면 됨:
+ *   --key-rgb   : Tailwind opacity modifier (bg-key/10 등) 용 RGB triplet (공백 구분)
+ *   --key-color : 인라인 스타일·box-shadow·SVG 등 hex/rgb 직접 사용 용
+ *   --key-glow  : 활성 탭 인디케이터·버튼 glow shadow 용 rgba
+ */
+:root {
+    --key-rgb:   245 197 24;
+    --key-color: #F5C518;
+    --key-glow:  rgba(245, 197, 24, 0.5);
+
+    /* ── Snap / Drop Zone Color (Material Amber 톤) ──
+     * src/constants/sizing.ts SNAP_COLOR 와 동기화. */
+    --snap-color: #FFC107;
+    --snap-glow:  rgba(255, 193, 7, 0.45);
+
+    /* v35: 커스텀 UI 스케일러 제거 — OS DPI 직접 위임. */
+    --font-size-base: 13px;
+    --app-header-height: 36px;
+    --panel-header-height: 48px;
+}
+
+/* ── Drag preview (포토샵 스타일 50-60% 투명도) ──
+ * useDockingSystem이 드래그 시작 시 PanelShell 루트에 data-dragging="true" 부여,
+ * 종료 시 제거. React 리렌더 없이 DOM 직접 조작. */
+[data-dragging="true"] {
+    opacity: 0.55 !important;
+    transition: opacity 0.12s ease-out;
+}
+
+/* [GLASS] html/body must be transparent so OS-level acrylic/vibrancy shows through */
+html, body, #root {
+    background: transparent !important;
+    word-break: keep-all; /* 어절 단위 줄바꿈 */
+    overflow-wrap: break-word;
+}
+/* In off mode, restore solid dark background */
+html[data-glass-effect="off"] body,
+html[data-glass-effect="off"] #root {
+    background: #0d0d10 !important;
+}
+
+/* ── Button press animation ── */
+@keyframes btn-press {
+    0%   { transform: scale(1);    filter: brightness(1); }
+    18%  { transform: scale(0.96); filter: brightness(0.95); }
+    55%  { transform: scale(1.03); filter: brightness(1.25); }
+    100% { transform: scale(1);    filter: brightness(1); }
+}
+.btn-press-anim {
+    animation: btn-press 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@layer components {
+
+    /* Glass Panel with dynamic blur based on data-glass-effect attribute */
+    /* Default: sunglasses mode - semi-transparent with blur */
+    /* GPU layer isolation to prevent flickering during canvas zoom/pan */
+    .glass-panel {
+        @apply bg-black/60 border border-white/10 shadow-2xl select-none break-keep;
+        backdrop-filter: blur(24px);
+        /* GPU layer isolation properties */
+        isolation: isolate;
+        contain: layout style paint;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+
+    /* Transparent mode - light blur, more see-through */
+    html[data-glass-effect="transparent"] .glass-panel {
+        @apply bg-black/30;
+        backdrop-filter: blur(16px);
+    }
+
+    /* Sunglasses mode (default) - darker tint with strong blur */
+    html[data-glass-effect="sunglasses"] .glass-panel {
+        @apply bg-black/60;
+        backdrop-filter: blur(24px);
+    }
+
+    /* Off mode - fully opaque background, no blur */
+    html[data-glass-effect="off"] .glass-panel {
+        @apply bg-zinc-900;
+        backdrop-filter: none;
+    }
+
+    /* Canvas grid background - dark charcoal */
+    /* NOTE: Using 'layout paint' instead of 'strict' to prevent content clipping during zoom */
+    .glass-grid-background {
+        background-color: #0e0e0e;
+        contain: layout paint;
+        isolation: isolate;
+    }
+
+    html[data-glass-effect="off"] .glass-grid-background {
+        background-color: #0d0d10;  /* Off mode: body/root와 통일 (경계선 제거) */
+    }
+
+    /* PixiJS WebGL canvas element — solid background placed HERE (not parent div)
+     * Core fix: transparent WebGL (backgroundAlpha:0) shows this CSS background, not the OS acrylic.
+     * Chromium compositor treats this element as opaque → prevents OS transparency bleed-through. */
+    .pixi-canvas {
+        background-color: #0e0e0e;
+    }
+    html[data-glass-effect="off"] .pixi-canvas {
+        background-color: #0d0d10;
+    }
+
+    .zooming .glass-grid-background {
+        transition: none !important;
+    }
+
+    /* ── Glass Menu (context menus & dropdowns) ── */
+    .glass-menu {
+        @apply border border-white/10 shadow-2xl;
+        background: rgba(18, 18, 20, 0.88);
+        backdrop-filter: blur(24px);
+        isolation: isolate;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+    html[data-glass-effect="transparent"] .glass-menu { background: rgba(18, 18, 20, 0.65); backdrop-filter: blur(16px); }
+    html[data-glass-effect="sunglasses"]  .glass-menu { background: rgba(18, 18, 20, 0.88); backdrop-filter: blur(24px); }
+    html[data-glass-effect="off"]         .glass-menu { background: rgb(39, 39, 42);         backdrop-filter: none; }
+
+    /* ── Glass Tooltip ── */
+    .glass-tooltip {
+        @apply border border-white/10 shadow-lg;
+        background: rgba(12, 12, 14, 0.92);
+        backdrop-filter: blur(20px);
+        isolation: isolate;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+    html[data-glass-effect="transparent"] .glass-tooltip { background: rgba(12, 12, 14, 0.72); backdrop-filter: blur(12px); }
+    html[data-glass-effect="sunglasses"]  .glass-tooltip { background: rgba(12, 12, 14, 0.92); backdrop-filter: blur(20px); }
+    html[data-glass-effect="off"]         .glass-tooltip { background: rgb(24, 24, 27);         backdrop-filter: none; }
+
+    /* ── Glass Header (window title bar) ── */
+    .glass-header {
+        @apply border-b border-white/10;
+        background: rgba(24, 24, 27, 0.88);
+        backdrop-filter: blur(24px);
+        isolation: isolate;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+    html[data-glass-effect="transparent"] .glass-header { background: rgba(24, 24, 27, 0.55); backdrop-filter: blur(16px); }
+    html[data-glass-effect="sunglasses"]  .glass-header { background: rgba(24, 24, 27, 0.88); backdrop-filter: blur(24px); }
+    html[data-glass-effect="off"]         .glass-header { background: rgb(24, 24, 27);         backdrop-filter: none; }
+
+    /* ── Glass Dialog (modals) ── */
+    .glass-dialog {
+        @apply border border-white/10 shadow-2xl;
+        background: rgba(22, 22, 24, 0.92);
+        backdrop-filter: blur(24px);
+        isolation: isolate;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+    }
+    html[data-glass-effect="transparent"] .glass-dialog { background: rgba(22, 22, 24, 0.72); backdrop-filter: blur(16px); }
+    html[data-glass-effect="sunglasses"]  .glass-dialog { background: rgba(22, 22, 24, 0.92); backdrop-filter: blur(24px); }
+    html[data-glass-effect="off"]         .glass-dialog { background: rgb(24, 24, 27);         backdrop-filter: none; }
+
+    /* Shared transitions */
+    /* backdrop-filter 제거: transparent 창에서 transition 시 compositor layer 재구성이 깜빡임 유발 */
+    .glass-panel, .glass-menu, .glass-tooltip, .glass-header, .glass-dialog {
+        transition: background 0.2s ease-out;
+    }
+
+    /* [PERF] Disable transitions during zoom interactions to prevent UI flickering */
+    /* NOTE: backdrop-filter kept for glass-panel/header - removing it on a transparent window makes panels fully transparent */
+    .zooming .glass-panel,
+    .zooming .glass-header,
+    .zooming .glass-menu,
+    .zooming .glass-tooltip,
+    .zooming .glass-dialog {
+        transition: none !important;
+    }
+
+    /* [PERF] FloatingToolbar/Popover: backdrop-filter도 제거 — 고정 오버레이라 transparent 창 영향 없음 */
+    .zooming .floating-toolbar,
+    .zooming .toolbar-popover {
+        transition: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    .grid-background {
+        background-color: #1a1a1a;
+        /* background-image: removed for unified dark look */
+    }
+
+    /* Dark Liquid Glass Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+        border-radius: 3px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+        backdrop-filter: blur(8px);
+        transition: background 0.2s ease;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:active {
+        background: rgba(255, 255, 255, 0.35);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    /* Dark Glass Scrollbar (User Requested) */
+    .dark-glass-scrollbar::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .dark-glass-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .dark-glass-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(80, 80, 80, 0.5);
+        border-radius: 3px;
+        backdrop-filter: blur(8px);
+        transition: background 0.2s ease;
+    }
+
+    .dark-glass-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 100, 100, 0.7);
+    }
+
+    .dark-glass-scrollbar::-webkit-scrollbar-thumb:active {
+        background: rgba(120, 120, 120, 0.8);
+    }
+
+    /* Hide scrollbar utility */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .cursor-zoom-in {
+        cursor: zoom-in !important;
+    }
+
+    .cursor-zoom-out {
+        cursor: zoom-out !important;
+    }
+}
+
+/* [A11Y] Respect user's motion preferences (HIGH severity - UX guideline) */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ── Animations & form resets (moved from App.tsx) ─── */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes category-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shake {
+    10%, 90%        { transform: translate3d(-1px, 0, 0); }
+    20%, 80%        { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70%   { transform: translate3d(-4px, 0, 0); }
+    40%, 60%        { transform: translate3d(4px, 0, 0); }
+}
+
+.animate-shake {
+    animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-category-fade-in {
+    animation: category-fade-in 0.4s ease-out forwards;
+}
+
+@keyframes selection-toolbar-fade-in {
+    from { opacity: 0; translate: 0 8px; scale: 0.9; }
+    to   { opacity: 1; translate: 0 0;   scale: 1; }
+}
+
+@keyframes fade-in-out-top {
+    0%   { opacity: 0; transform: translate(-50%, -20px); }
+    15%  { opacity: 1; transform: translate(-50%, 0); }
+    85%  { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -20px); }
+}
+
+.animate-fade-in-out-top {
+    animation: fade-in-out-top 4.0s ease-in-out forwards;
+}
+
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+input[type=range]:hover { opacity: 1; }
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: none; border-radius: 0.375rem; }
+input[type=color]::-moz-color-swatch { border: none; border-radius: 0.375rem; }
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
+@keyframes progress-animation {
+    from { width: 0%; }
+    to   { width: 100%; }
+}
+
+.progress-bar-inner {
+    animation: progress-animation 15s linear forwards;
+}
+
+@keyframes slide-down-enter {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-down-enter {
+    animation: slide-down-enter 0.3s ease-out forwards;
+}
+
+/* ============================================================
+   FloatingToolbar — 포토샵 스타일 세로 플로팅 툴바
+   z-index 계층: selection_bar(151) == toolbar(151) < toolbar_popover(152) < toolbar_tooltip(153)
+   ※ src/constants/zIndex.ts의 Z_INDEX 상수와 동기화
+   ============================================================ */
+
+.floating-toolbar {
+    position: fixed;
+    z-index: 151; /* Z_INDEX.TOOLBAR */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0 0 6px 0;
+    border-radius: 10px;
+    @apply bg-black/60 border border-white/10;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    user-select: none;
+    touch-action: none;
+    overflow: hidden;
+}
+.floating-toolbar:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.3);
+    outline-offset: 2px;
+}
+.toolbar-drag-handle {
+    width: 20px;
+    height: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    cursor: grab;
+    padding: 2px 0;
+    margin-bottom: 2px;
+    opacity: 0.3;
+    transition: opacity 150ms ease;
+}
+.toolbar-drag-handle:active { cursor: grabbing; }
+.toolbar-drag-handle:hover { opacity: 0.6; }
+.toolbar-drag-handle span {
+    display: block;
+    width: 14px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    color: #aaa;
+}
+.toolbar-btn {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #71717a;
+    cursor: pointer;
+    transition: color 150ms ease, background 150ms ease;
+    outline: none;
+    flex-shrink: 0;
+}
+.toolbar-btn:hover {
+    color: #d4d4d8;
+    background: rgba(255, 255, 255, 0.06);
+}
+.toolbar-btn[aria-pressed="true"] {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+}
+.toolbar-btn[aria-pressed="true"]::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 25%;
+    bottom: 25%;
+    width: 2px;
+    border-radius: 1px;
+    background: #ffffff;
+}
+.toolbar-btn:disabled {
+    color: #3f3f46;
+    cursor: not-allowed;
+    background: transparent;
+}
+.toolbar-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.4);
+    outline-offset: -2px;
+}
+.toolbar-text-icon {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+.toolbar-divider {
+    width: 24px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+    flex-shrink: 0;
+}
+.toolbar-popover {
+    position: fixed;
+    z-index: 152; /* Z_INDEX.TOOLBAR_POPOVER */
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+    @apply bg-black/60 border border-white/10 break-keep;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+    overflow: hidden;
+    min-width: 280px;
+    min-height: 200px;
+}
+.toolbar-popover.popover-from-right {
+    animation: popover-enter-right 200ms ease forwards;
+}
+.toolbar-popover.popover-from-left {
+    animation: popover-enter-left 200ms ease forwards;
+}
+@keyframes popover-enter-right {
+    from { opacity: 0; translate: -8px 0; scale: 0.97; }
+    to   { opacity: 1; translate: 0 0;    scale: 1; }
+}
+@keyframes popover-enter-left {
+    from { opacity: 0; translate: 8px 0; scale: 0.97; }
+    to   { opacity: 1; translate: 0 0;   scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .toolbar-popover.popover-from-right,
+    .toolbar-popover.popover-from-left { animation: none; }
+}
+.popover-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: grab;
+    flex-shrink: 0;
+}
+.popover-header:active { cursor: grabbing; }
+.popover-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.popover-header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.popover-header-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #71717a;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: color 150ms, background 150ms;
+}
+.popover-header-btn:hover {
+    color: #d4d4d8;
+    background: rgba(255,255,255,0.06);
+}
+.popover-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.popover-body::-webkit-scrollbar { width: 4px; }
+.popover-body::-webkit-scrollbar-track { background: transparent; }
+.popover-body::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+}
+.popover-content-enter { animation: content-fade-in 150ms ease forwards; }
+@keyframes content-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .popover-content-enter { animation: none; }
+}
+.resize-handle-s {
+    position: absolute;
+    bottom: 0; left: 12px; right: 12px;
+    height: 8px;
+    cursor: s-resize;
+}
+.resize-handle-sw {
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 12px; height: 12px;
+    cursor: sw-resize;
+    border-bottom-left-radius: 10px;
+}
+.resize-handle-se {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 12px; height: 12px;
+    cursor: se-resize;
+    border-bottom-right-radius: 10px;
+}
+.resize-handle-w {
+    position: absolute;
+    left: 0; top: 40px; bottom: 12px;
+    width: 6px;
+    cursor: w-resize;
+}
+.resize-handle-e {
+    position: absolute;
+    right: 0; top: 40px; bottom: 12px;
+    width: 6px;
+    cursor: e-resize;
+}
+
+/* ── 가로 모드 툴바 ─────────────────────────────────────── */
+.floating-toolbar.horizontal {
+    flex-direction: row;
+    align-items: stretch;
+    padding: 0;
+    gap: 0;
+    height: 52px;
+    width: auto;
+}
+.floating-toolbar.horizontal.toolbar-docked-bottom {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: none;
+}
+/* 가로 모드 드래그 핸들 — 좌측 세로 막대 3개 */
+.floating-toolbar.horizontal .toolbar-drag-handle {
+    flex-direction: row;
+    width: 16px;
+    height: 32px;
+    margin-bottom: 0;
+    margin-right: 0;
+    gap: 3px;
+}
+.floating-toolbar.horizontal .toolbar-drag-handle span {
+    width: 2px;
+    height: 22px;
+}
+/* 가로 모드 구분선 — 세로선 */
+.floating-toolbar.horizontal .toolbar-divider {
+    width: 1px;
+    height: 24px;
+    margin: 0 4px;
+}
+/* 가로 모드 active indicator — 상단 선 */
+.floating-toolbar.horizontal .toolbar-btn[aria-pressed="true"]::before {
+    top: -1px;
+    left: 25%;
+    right: 25%;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+}
+
+/* ── 툴바 스크롤 컨테이너 ────────────────────────────────── */
+.toolbar-scroll-wrapper {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+}
+.toolbar-scroll-wrapper--v {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+}
+.toolbar-scroll-wrapper--h {
+    flex-direction: row;
+    align-items: stretch;
+    height: 100%;
+}
+.toolbar-scroll-content {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+.toolbar-scroll-content--v {
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+    scrollbar-width: none;
+}
+.toolbar-scroll-content--v::-webkit-scrollbar { display: none; }
+.toolbar-scroll-content--h {
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 100%;
+    scrollbar-width: none;
+}
+.toolbar-scroll-content--h::-webkit-scrollbar { display: none; }
+.toolbar-scroll-arrow {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #71717a;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: color 150ms, background 150ms;
+    padding: 2px;
+}
+.toolbar-scroll-arrow.arrow-v {
+    width: 100%;
+    height: 18px;
+}
+.toolbar-scroll-arrow.arrow-h {
+    height: 100%;
+    width: 18px;
+}
+.toolbar-scroll-arrow:hover:not(:disabled) {
+    color: #d4d4d8;
+    background: rgba(255,255,255,0.06);
+}
+.toolbar-scroll-arrow:disabled {
+    opacity: 0.2;
+    cursor: default;
+}
+
+/* ── 툴바 리사이즈 핸들 ──────────────────────────────────── */
+.toolbar-resize-handle-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 8px;
+    right: 8px;
+    height: 6px;
+    cursor: s-resize;
+    border-radius: 0 0 6px 6px;
+    z-index: 1;
+}
+.toolbar-resize-handle-bottom::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 30%;
+    right: 30%;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.18);
+    transition: background 150ms;
+}
+.toolbar-resize-handle-bottom:hover::after {
+    background: rgba(255,255,255,0.5);
+}
+.toolbar-resize-handle-right {
+    position: absolute;
+    right: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 6px;
+    cursor: e-resize;
+    border-radius: 0 6px 6px 0;
+    z-index: 1;
+}
+.toolbar-resize-handle-right::after {
+    content: '';
+    position: absolute;
+    right: 2px;
+    top: 30%;
+    bottom: 30%;
+    width: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.18);
+    transition: background 150ms;
+}
+.toolbar-resize-handle-right:hover::after {
+    background: rgba(255,255,255,0.5);
+}
+
+/* ── 팝오버 가로 모드 등장 애니메이션 ───────────────────── */
+.toolbar-popover.popover-from-bottom {
+    animation: popover-enter-bottom 200ms ease forwards;
+}
+@keyframes popover-enter-bottom {
+    from { opacity: 0; translate: 0 -8px; scale: 0.97; }
+    to   { opacity: 1; translate: 0 0;    scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .toolbar-popover.popover-from-bottom { animation: none; }
+}
+
+/* ── 툴바 도킹 비주얼 ────────────────────────────────────────────────── */
+
+/* 도킹된 툴바: 공통 */
+.floating-toolbar.toolbar-docked {
+    border-radius: 10px; /* 기본값 유지, side 클래스에서 덮어씀 */
+}
+
+/* 도킹된 툴바: 양 옆으로 패널/팝오버가 붙어 샌드위치된 상태이면 둥글기 완전 제거 */
+.floating-toolbar.toolbar-docked.toolbar-sandwiched {
+    border-radius: 0 !important;
+}
+
+/* 패널 우측에 도킹: 툴바 좌측 모서리 제거 */
+.floating-toolbar.toolbar-docked-right {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 패널 좌측에 도킹: 툴바 우측 모서리 제거 */
+.floating-toolbar.toolbar-docked-left {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 패널 하단에 도킹 (가로 모드): 툴바 상단 모서리 제거 */
+.floating-toolbar.toolbar-docked-bottom {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 패널: 툴바가 우측에 붙은 경우 우측 모서리 둥글기 제거 */
+.panel-has-toolbar-right {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+.panel-has-toolbar-right > .h-12 {
+    border-top-right-radius: 0 !important;
+}
+
+/* 패널: 툴바가 좌측에 붙은 경우 좌측 모서리 둥글기 제거 */
+.panel-has-toolbar-left {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+.panel-has-toolbar-left > .h-12 {
+    border-top-left-radius: 0 !important;
+}
+
+/* 팝오버: 도킹 상태 (헤더 드래그 커서 제거) */
+.toolbar-popover.popover-docked .popover-header {
+    cursor: default;
+}
+
+/* 팝오버: 툴바 우측으로 튀어나온 경우 (팝오버의 좌측 모서리 둥글기 제거) */
+.toolbar-popover.popover-docked-left {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.04) !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.toolbar-popover.popover-docked-left > .popover-header {
+    border-top-left-radius: 0 !important;
+}
+
+/* 팝오버: 툴바 좌측으로 튀어나온 경우 (팝오버의 우측 모서리 둥글기 제거) */
+.toolbar-popover.popover-docked-right {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.04) !important;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.toolbar-popover.popover-docked-right > .popover-header {
+    border-top-right-radius: 0 !important;
+}
+
+/* 팝오버: 가로 모드 하단 도킹 (팝오버 상단 모서리 제거) */
+.toolbar-popover.popover-docked-bottom {
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+.toolbar-popover.popover-docked-bottom > .popover-header {
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+}
+
+/* ── 툴바·팝오버 테마 동기화 ───────────────────────────────── */
+/* transparent 모드 */
+html[data-glass-effect="transparent"] .floating-toolbar,
+html[data-glass-effect="transparent"] .toolbar-popover {
+    @apply bg-black/30 border-white/10;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+/* off 모드: 완전 불투명 */
+html[data-glass-effect="off"] .floating-toolbar,
+html[data-glass-effect="off"] .toolbar-popover {
+    @apply bg-zinc-900 border-white/10;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.80);
+}
+
+/* 툴바 언도킹 버튼 */
+.toolbar-undock-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #71717a;
+    cursor: pointer;
+    transition: color 150ms ease, background 150ms ease;
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+}
+.toolbar-undock-btn:hover {
+    color: #d4d4d8;
+    background: rgba(255, 255, 255, 0.06);
+}

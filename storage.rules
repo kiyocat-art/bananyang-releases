@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ──────────────────────────────────────────
+    // batch_inputs/{uid}/ — 배치 잡 처리용 임시 입력 이미지
+    // 업로드: 본인 UID 경로만, 20MB 상한
+    // 읽기/삭제: Cloud Function (Admin SDK) 전용
+    // ──────────────────────────────────────────
+    match /batch_inputs/{uid}/{allPaths=**} {
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.size < 20 * 1024 * 1024;
+      allow read, update, delete: if false;
+    }
+
+    // ──────────────────────────────────────────
+    // batch_results/{uid}/ — 처리 완료된 결과 이미지
+    // 업로드/삭제: Cloud Function (Admin SDK) 전용
+    // 읽기: 본인 UID 경로만 (Auth URL 방식)
+    // ──────────────────────────────────────────
+    match /batch_results/{uid}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // ──────────────────────────────────────────
+    // releases/ — OTA 설치 파일 (.exe, .dmg, latest.yml, .blockmap)
+    // 읽기: 공개 (electron-updater 다운로드)
+    // 쓰기: Admin SDK (release-firebase.mjs) 전용
+    // ──────────────────────────────────────────
+    match /releases/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // 기본: 나머지 모든 경로 접근 차단
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "name": "bananyang-app",
+  "version": "1.0.0",
+  "description": "Based on the BanaNyang AI model, generate three-view character sheets and freely edit costume designs.",
+  "homepage": ".",
+  "main": "main.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/index.css -o ./bundle.css",
+    "build": "node scripts/build-with-env.js",
+    "build:prod": "node scripts/build-with-env.js production",
+    "start": "npm run build && electron .",
+    "start:prod": "npm run build:prod && electron .",
+    "web": "npm run build && npx http-server . -p $PORT --cors -c-1",
+    "make-icon": "node scripts/create-icon.js",
+    "dist": "npm run build && electron-builder",
+    "dist:prod": "npm run build:prod && electron-builder",
+    "build:thumb-dll": "node scripts/build-thumbnail-dll.js",
+    "dist:win": "npm run build && npm run build:thumb-dll && electron-builder --win",
+    "dist:win:prod": "npm run build:prod && npm run build:thumb-dll && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac --universal",
+    "dist:mac:prod": "npm run build:prod && electron-builder --mac --universal",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "package": "npm run dist",
+    "make-installer": "npm install && npm run dist:prod",
+    "make-installer:dev": "npm install && npm run dist:win",
+    "release": "node scripts/release.js"
+  },
+  "author": "kiyocat",
+  "license": "ISC",
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@google-cloud/vertexai": "^1.10.0",
+    "@google/genai": "^1.19.0",
+    "ag-psd": "^28.5.1",
+    "electron-updater": "^6.8.3",
+    "fflate": "^0.8.2",
+    "immer": "^11.0.1",
+    "ktx-parse": "^1.1.0",
+    "parse-exr": "^1.0.2",
+    "pixi.js": "^8.14.3",
+    "rbush": "^4.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.9.6",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.5.0",
+    "@esbuild/win32-x64": "^0.27.2",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.22",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.27.2",
+    "http-server": "^14.1.1",
+    "jimp": "^1.6.0",
+    "png2icons": "^2.0.1",
+    "postcss": "^8.5.6",
+    "puppeteer": "^24.35.0",
+    "sharp": "^0.33.4",
+    "tailwindcss": "^3.4.18",
+    "to-ico": "^1.1.5",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "minimist": "^1.2.8",
+    "jpeg-js": "^0.4.4",
+    "qs": "^6.14.1",
+    "tough-cookie": "^4.1.4",
+    "form-data": ">=4.0.0"
+  },
+  "build": {
+    "appId": "com.kiyocat.bananyang",
+    "productName": "BanaNyang",
+    "artifactName": "BanaNyang-Setup-v${version}.${ext}",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://storage.googleapis.com/bananyang-ai.firebasestorage.app/releases/${os}",
+        "channel": "latest"
+      }
+    ],
+    "files": [
+      "bundle.js",
+      "bundle.css",
+      "rendering.worker.js",
+      "data.worker.js",
+      "index.html",
+      "main.js",
+      "preload.js",
+      "src/services/auth/googleAuthMain.js",
+      "assets/**/*",
+      "sam3d-engine/**/*",
+      "build/icon.png",
+      "build/icon.ico",
+      "build/icon.icns",
+      "bananyang-icon-*.png",
+      "*.png"
+    ],
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "extraResources": [
+        {
+          "from": "shell-thumbnail-provider/target/x86_64-pc-windows-msvc/release/bananyang_thumb.dll",
+          "to": "bananyang_thumb.dll",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.graphics-design",
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "afterSign": "scripts/notarize.js",
+    "dmg": {
+      "title": "BanaNyang AI",
+      "icon": "build/icon.icns",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "uninstallDisplayName": "BanaNyang Uninstall",
+      "warningsAsErrors": false,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    },
+    "fileAssociations": [
+      {
+        "ext": "nyang",
+        "name": "BanaNyang Workspace",
+        "role": "Editor",
+        "mimeType": "application/x-nyang"
+      },
+      {
+        "ext": "rfy",
+        "name": "BanaNyang Workspace (Legacy)",
+        "role": "Editor",
+        "mimeType": "application/x-rfy"
+      },
+      {
+        "ext": "bananyang",
+        "name": "BanaNyang Workspace (Legacy)",
+        "role": "Editor",
+        "mimeType": "application/x-bananyang"
+      }
+    ]
+  }
+}

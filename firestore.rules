@@ -1,0 +1,111 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────
+    // users/{uid} — 사용자 프로필 + DRM 상태
+    // ──────────────────────────────────────────
+    match /users/{uid} {
+      // 본인 데이터만 읽기 가능
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // 직접 삭제 불가 (Admin SDK 전용)
+      allow delete: if false;
+
+      // 최초 프로필 생성: 안전한 필드만 허용
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.keys().hasOnly([
+                        'email', 'displayName', 'photoURL',
+                        'locale', 'updatedAt', 'createdAt'
+                      ]);
+
+      // 프로필 업데이트: 안전한 필드만 + DRM 필드(lastVerifiedAt) 허용
+      // hasPurchase, purchaseVerified 등 민감 필드는 Admin SDK(서버)만 수정 가능
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys().hasOnly([
+                          'lastVerifiedAt', 'displayName',
+                          'photoURL', 'locale', 'updatedAt'
+                        ]);
+    }
+
+    // ──────────────────────────────────────────
+    // purchases/{transactionId} — Lemon Squeezy 구매 이력
+    // 읽기: 본인 구매만 가능 / 쓰기: Admin SDK(Webhook) 전용
+    // ──────────────────────────────────────────
+    match /purchases/{txnId} {
+      allow read: if request.auth != null
+                  && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // ──────────────────────────────────────────
+    // licenses/{licenseKey} — 라이선스 키
+    // 읽기: 본인 라이선스만 가능 / 쓰기: Admin SDK 전용
+    // ──────────────────────────────────────────
+    match /licenses/{key} {
+      allow read: if request.auth != null
+                  && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // ──────────────────────────────────────────
+    // pending_purchases — Lemon Squeezy 웹훅 전용 (접근 전면 차단)
+    // ──────────────────────────────────────────
+    match /pending_purchases/{docId} {
+      allow read, write: if false;
+    }
+
+    // ──────────────────────────────────────────
+    // app_releases/{docId} — OTA 업데이트 메타데이터
+    // 읽기: 공개 (인증 없이도 부팅 직후 버전 체크 가능)
+    // 쓰기: Admin SDK (release-firebase.mjs) 전용
+    // ──────────────────────────────────────────
+    match /app_releases/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ──────────────────────────────────────────
+    // batch_jobs/{jobId} — 서버 배치 잡
+    // 생성: 본인 uid + status='pending' + 항목 수 ≤ 20 + 비용 상한 ≤ $10
+    // 읽기: 본인 잡만
+    // 업데이트: 본인 잡, notified 필드만 (Cloud Function은 Admin SDK 사용)
+    // 삭제: 본인 잡 + 완료/실패 상태만 (진행 중 잡 삭제 방지)
+    // ──────────────────────────────────────────
+    match /batch_jobs/{jobId} {
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.items.size() <= 20
+                    && request.resource.data.totalItems == request.resource.data.items.size()
+                    && request.resource.data.estimatedCostUsd <= 10.0;
+      allow read: if request.auth != null
+                  && resource.data.uid == request.auth.uid;
+      allow update: if request.auth != null
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['notified']);
+      allow delete: if request.auth != null
+                    && resource.data.uid == request.auth.uid
+                    && resource.data.status in ['completed', 'failed'];
+    }
+
+    // ──────────────────────────────────────────
+    // notify_signups — 출시 알림 이메일 수집
+    // 모든 클라이언트 접근 차단. /api/subscribe 가 Admin SDK 로만 기록.
+    // (예전: 클라이언트 직접 create 허용 → 보안/이메일 발송 통제 위해 서버 라우트로 이관)
+    // ──────────────────────────────────────────
+    match /notify_signups/{docId} {
+      allow read, write: if false;
+    }
+
+    // 기본: 나머지 모든 컬렉션 접근 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
