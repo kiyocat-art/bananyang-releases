@@ -2324,6 +2324,43 @@ ipcMain.handle('safe-storage-availability', async () => {
 });
 
 // ========================================
+// [DRM] Device fingerprint — machine binding (1 user = 1 device)
+// node-machine-id pulls a stable OS-level identifier:
+//   - Windows: registry MachineGuid
+//   - macOS:   IOPlatformUUID
+//   - Linux:   /etc/machine-id
+// Combined with hostname + cpu model and hashed → device fingerprint.
+// Raw fingerprint stays on device. Only SHA-256 is sent to server.
+// ========================================
+const os = require('os');
+let _cachedFingerprint = null;
+ipcMain.handle('get-device-fingerprint', async () => {
+    try {
+        if (_cachedFingerprint) return _cachedFingerprint;
+        const { machineIdSync } = require('node-machine-id');
+        const machineId = machineIdSync(true); // true = original (uppercase, no hash)
+        const hostname = os.hostname() || 'unknown-host';
+        const cpu = (os.cpus()[0]?.model || 'unknown-cpu').trim();
+        const platform = process.platform;
+        const raw = `${platform}|${machineId}|${hostname}|${cpu}`;
+        const hash = crypto.createHash('sha256').update(raw).digest('hex');
+        _cachedFingerprint = { hash, hostname, platform };
+        return _cachedFingerprint;
+    } catch (e) {
+        console.error('[DRM] get-device-fingerprint error:', e);
+        // Fallback: derive from hostname + platform only (still stable per machine).
+        const hostname = os.hostname() || 'unknown-host';
+        const platform = process.platform;
+        const hash = crypto
+            .createHash('sha256')
+            .update(`fallback|${platform}|${hostname}`)
+            .digest('hex');
+        _cachedFingerprint = { hash, hostname, platform };
+        return _cachedFingerprint;
+    }
+});
+
+// ========================================
 // [AUTO-UPDATE] electron-updater (Firebase Storage GenericProvider)
 // ========================================
 const { autoUpdater } = require('electron-updater');
